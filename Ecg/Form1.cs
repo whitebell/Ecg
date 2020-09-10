@@ -29,6 +29,9 @@ namespace Ecg
 
         private void button1_Click(object sender, EventArgs e)
         {
+#if DEBUG
+            directory = "D:\\Repository\\whitebell\\eratohoNJ\\ERB";
+#else
             using (var fsd = new FolderBrowserDialog())
             {
                 if (fsd.ShowDialog() == DialogResult.OK)
@@ -36,6 +39,7 @@ namespace Ecg
                 else
                     return;
             }
+#endif
 
             string currentLine;
             var sb = new StringBuilder();
