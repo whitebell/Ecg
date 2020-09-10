@@ -32,7 +32,7 @@ namespace Ecg
 #if DEBUG
             directory = "D:\\Repository\\whitebell\\eratohoNJ\\ERB";
 #else
-            using (var fsd = new FolderBrowserDialog())
+            using (var fsd = new FolderBrowserDialog() { Description = "Select ERB Folder.", SelectedPath = "ERB" })
             {
                 if (fsd.ShowDialog() == DialogResult.OK)
                     directory = fsd.SelectedPath;
@@ -115,6 +115,7 @@ namespace Ecg
 
                     //todo
                 }
+                //sr.Dispose();
             }
 
             // event function
@@ -288,6 +289,7 @@ namespace Ecg
     {
         private readonly HashSet<string> callee;
         private readonly HashSet<string> singlechar;
+        public bool CallForm = false;
 
         public ErbFunction()
         {
