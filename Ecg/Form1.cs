@@ -43,37 +43,39 @@ namespace Ecg
 
             string currentLine;
             var sb = new StringBuilder();
-            foreach (var f in Directory.EnumerateFiles(directory, "*.ERB", SearchOption.AllDirectories))
+            foreach (var file in Directory.EnumerateFiles(directory, "*.ERB", SearchOption.AllDirectories))
             {
-                using var sr = new StreamReader(f);
+                using var sr = new StreamReader(file);
                 var currentFunction = "";
-                var path = f.Remove(0, directory.Length + 1);
+                var relPath = file.Remove(0, directory.Length + 1);
                 while ((currentLine = sr.ReadLine()?.Trim()) != null)
                 {
+                    //空行・コメント行はスキップ
                     if (currentLine.Length == 0 || currentLine.StartsWith(';'))
                         continue;
 
+                    //関数宣言行
                     if (currentLine.StartsWith('@'))
                     {
-                        var ma = func.Match(currentLine);
-                        currentFunction = ma.Groups[1].Value;
+                        currentFunction = func.Match(currentLine).Groups[1].Value;
 
                         if (dic.ContainsKey(currentFunction))
                         {
-                            dic[currentFunction].Filename += $", {path}";
+                            dic[currentFunction].Filename += $", {relPath}";
                         }
                         else
                         {
                             dic[currentFunction] = new ErbFunction
                             {
                                 Name = currentFunction,
-                                Filename = path,
+                                Filename = relPath,
                             };
                         }
                         continue;
                     }
 
-                    //begin event
+                    //イベント関数
+                    //BEGIN EVENT
                     var m = begin.Match(currentLine);
                     if (m.Success)
                     {
@@ -235,30 +237,37 @@ namespace Ecg
             }
 
             // {INTEGER}, %STRING% interpolation
-            foreach (var key in dic.Keys)
             {
-                var dellist = new List<string>();
-                var addlist = new List<string>();
-                foreach (var callee in dic[key].Callee)
+                var add = new List<ErbFunction>();
+                foreach (var key in dic.Keys)
                 {
-                    if (strInterpolate.IsMatch(callee) || intInterpolate.IsMatch(callee))
+                    foreach (var callee in dic[key].Callee)
                     {
-                        dellist.Add(callee);
-                        var pattern = Regex.Escape(callee);
-                        pattern = strInterpolate.Replace(pattern, ".+?");
-                        pattern = intInterpolate.Replace(pattern, "-?\\d+");
-                        var re = new Regex(pattern);
-                        foreach (var k in dic.Keys)
+                        //CALLFORM系
+                        if (strInterpolate.IsMatch(callee) || intInterpolate.IsMatch(callee))
                         {
-                            if (re.IsMatch(k))
-                                addlist.Add(k);
+                            var f = new ErbFunction() { Name = callee };
+
+                            var pattern = Regex.Escape(callee);
+                            pattern = strInterpolate.Replace(pattern, ".+?");
+                            pattern = intInterpolate.Replace(pattern, "-?\\d+");
+                            var re = new Regex(pattern);
+
+                            foreach (var k in dic.Keys)
+                            {
+                                if (re.IsMatch(k))
+                                {
+                                    foreach (var scv in dic[k].SingleCharVariable)
+                                        f.SingleCharVariable.Add(scv);
+                                }
+                            }
+
+                            add.Add(f);
                         }
                     }
                 }
-                foreach (var d in dellist)
-                    dic[key].Callee.Remove(d);
-                foreach (var a in addlist)
-                    dic[key].Callee.Add(a);
+                foreach (var func in add)
+                    dic[func.Name] = func;
             }
 
             sb.AppendLine("digraph G {");
@@ -306,8 +315,10 @@ namespace Ecg
         public string Name { get; set; }
         public string Filename { get; set; }
 
+        private string EscapedName => Name.Replace("{", "\\{").Replace("}", "\\}");
+
         public string Node => singlechar.Count != 0
-                    ? $"\"{Name}\" [label = {{{Name} | {String.Join(", ", singlechar.OrderBy(e => e))}}}]"
-                    : $"\"{Name}\" [label = {{{Name}}}";
+                    ? $"\"{Name}\" [label = \"{{{EscapedName} | {String.Join(", ", singlechar.OrderBy(e => e))}}}\"]"
+                    : $"\"{Name}\" [label = \"{{{EscapedName}}}\"]";
     }
 }
